@@ -21,8 +21,9 @@ export const deleteHabit = (id) => api.delete(`/api/habits/${id}`);
 
 // Weeks API
 export const getCurrentWeek = () => api.get('/api/week/current');
-export const toggleHabitCompletion = (habitId, day) => 
-  api.post('/api/week/toggle', { habitId, day });
+export const getWeekByDate = (date) => api.get(`/api/week/by-date?date=${date}`);
+export const toggleHabitCompletion = (habitId, date) => 
+  api.post('/api/week/toggle', { habitId, date });
 export const getWeekHistory = (skip = 0, limit = 10) => 
   api.get(`/api/weeks/history?skip=${skip}&limit=${limit}`);
 export const getWeekById = (weekId) => api.get(`/api/weeks/${weekId}`);

@@ -88,6 +88,8 @@ export default function WeeklyGrid({ habits, daysOrder, weekDates, today, onTogg
               const isCompleted = habit.completion[day];
               const isToday = day === today;
               const habitColor = habit.color || '#0ea5e9';
+              // Get the actual date for this day from weekDates
+              const dateForDay = weekDates?.[day];
 
               return (
                 <div 
@@ -98,7 +100,7 @@ export default function WeeklyGrid({ habits, daysOrder, weekDates, today, onTogg
                 >
                   {isScheduled ? (
                     <button
-                      onClick={() => onToggle(habit.habitId, day)}
+                      onClick={() => dateForDay && onToggle(habit.habitId, dateForDay)}
                       className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all`}
                       style={{
                         backgroundColor: isCompleted ? habitColor : (isToday ? `${habitColor}20` : '#f3f4f6'),

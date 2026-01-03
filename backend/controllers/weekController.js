@@ -71,6 +71,93 @@ export async function createNewWeekIfNeeded() {
 }
 
 /**
+ * Get week data by a specific date
+ * GET /api/week/by-date?date=YYYY-MM-DD
+ * Returns the week (Sunday-Saturday) that contains the given date
+ * Creates the week if it doesn't exist
+ */
+export async function getWeekByDate(req, res) {
+  try {
+    const { date } = req.query;
+
+    if (!date) {
+      return res.status(400).json({ error: 'date query parameter is required' });
+    }
+
+    // Validate date format
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ error: 'Invalid date format. Use YYYY-MM-DD' });
+    }
+
+    // Get date info for the provided date
+    const dateInfo = getDateInfo(date);
+
+    // Try to find the week
+    let week = await Week.findOne({ weekId: dateInfo.weekId });
+
+    // If week doesn't exist, create it
+    if (!week) {
+      const weekStartDate = new Date(dateInfo.weekStart + 'T00:00:00');
+      const weekEndDate = new Date(dateInfo.weekEnd + 'T23:59:59');
+
+      // Get all active habits
+      const habits = await Habit.find({ isActive: true });
+
+      const habitEntries = habits.map(habit => ({
+        habitId: habit._id,
+        title: habit.title,
+        scheduledDays: habit.scheduledDays,
+        isCompulsory: habit.isCompulsory || false,
+        color: habit.color || '#0ea5e9',
+        completion: {
+          Sun: false, Mon: false, Tue: false, Wed: false,
+          Thu: false, Fri: false, Sat: false
+        }
+      }));
+
+      // Check if this is the current week
+      const todayStr = getTodayDateString();
+      const isCurrent = todayStr >= dateInfo.weekStart && todayStr <= dateInfo.weekEnd;
+
+      week = new Week({
+        weekStart: weekStartDate,
+        weekEnd: weekEndDate,
+        weekId: dateInfo.weekId,
+        habits: habitEntries,
+        isCurrent: isCurrent,
+        progress: 0
+      });
+
+      await week.save();
+      console.log(`✅ Created week for date ${date}: ${dateInfo.weekId}`);
+    }
+
+    const weekDates = getWeekDates(week.weekStart);
+    const todayStr = getTodayDateString();
+    const isCurrent = todayStr >= dateInfo.weekStart && todayStr <= dateInfo.weekEnd;
+
+    res.json({
+      weekId: week.weekId,
+      weekStart: week.weekStart,
+      weekEnd: week.weekEnd,
+      weekRange: formatWeekRange(week.weekStart, week.weekEnd),
+      today: getTodayName(),
+      todayDate: todayStr,
+      selectedDate: date,
+      selectedDayName: dateInfo.dayName,
+      weekDates,
+      habits: week.habits,
+      progress: week.progress,
+      isCurrent,
+      daysOrder: WEEK_DAYS_ORDERED
+    });
+  } catch (error) {
+    console.error('Error fetching week by date:', error);
+    res.status(500).json({ error: 'Failed to fetch week data' });
+  }
+}
+
+/**
  * Get current week data
  * GET /api/week/current
  */
@@ -107,31 +194,68 @@ export async function getCurrentWeek(req, res) {
 /**
  * Toggle habit completion for a specific day
  * POST /api/week/toggle
+ * Accepts { habitId, date } where date is YYYY-MM-DD format
+ * Backend derives the weekday from the date using timezone
  */
 export async function toggleHabitCompletion(req, res) {
   try {
-    const { habitId, day } = req.body;
+    const { habitId, date } = req.body;
 
-    if (!habitId || !day) {
-      return res.status(400).json({ error: 'habitId and day are required' });
+    if (!habitId || !date) {
+      return res.status(400).json({ error: 'habitId and date are required' });
     }
 
-    if (!WEEK_DAYS_ORDERED.includes(day)) {
-      return res.status(400).json({ error: 'Invalid day' });
+    // Validate date format
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ error: 'Invalid date format. Use YYYY-MM-DD' });
     }
 
-    const currentWeek = await Week.findOne({ isCurrent: true });
-    if (!currentWeek) {
-      return res.status(404).json({ error: 'No current week found' });
+    // Get date info (weekday, weekId, etc.) from the provided date
+    const dateInfo = getDateInfo(date);
+    const day = dateInfo.dayName;
+
+    // Find the week containing this date
+    let week = await Week.findOne({ weekId: dateInfo.weekId });
+    
+    if (!week) {
+      // If week doesn't exist, create it (for future dates or gaps)
+      const weekStartDate = new Date(dateInfo.weekStart + 'T00:00:00');
+      const weekEndDate = new Date(dateInfo.weekEnd + 'T23:59:59');
+      
+      // Get all active habits
+      const habits = await Habit.find({ isActive: true });
+      
+      const habitEntries = habits.map(habit => ({
+        habitId: habit._id,
+        title: habit.title,
+        scheduledDays: habit.scheduledDays,
+        isCompulsory: habit.isCompulsory || false,
+        color: habit.color || '#0ea5e9',
+        completion: {
+          Sun: false, Mon: false, Tue: false, Wed: false,
+          Thu: false, Fri: false, Sat: false
+        }
+      }));
+      
+      week = new Week({
+        weekStart: weekStartDate,
+        weekEnd: weekEndDate,
+        weekId: dateInfo.weekId,
+        habits: habitEntries,
+        isCurrent: false,
+        progress: 0
+      });
+      
+      await week.save();
     }
 
     // Find the habit in the week
-    const habitEntry = currentWeek.habits.find(
+    const habitEntry = week.habits.find(
       h => h.habitId.toString() === habitId
     );
 
     if (!habitEntry) {
-      return res.status(404).json({ error: 'Habit not found in current week' });
+      return res.status(404).json({ error: 'Habit not found in this week' });
     }
 
     // Check if this day is scheduled for this habit
@@ -145,16 +269,18 @@ export async function toggleHabitCompletion(req, res) {
     habitEntry.completion[day] = !habitEntry.completion[day];
     
     // Recalculate progress
-    currentWeek.calculateProgress();
+    week.calculateProgress();
     
-    await currentWeek.save();
+    await week.save();
 
     res.json({
       message: 'Habit completion toggled',
       habitId,
+      date,
       day,
       completed: habitEntry.completion[day],
-      progress: currentWeek.progress
+      progress: week.progress,
+      weekId: week.weekId
     });
   } catch (error) {
     console.error('Error toggling habit completion:', error);

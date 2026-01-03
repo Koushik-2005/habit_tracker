@@ -5,20 +5,24 @@ const DAYS_HEADER = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export default function Calendar({ selectedDate, onDateSelect, isCollapsed, onToggleCollapse, todayDate }) {
   const [calendarData, setCalendarData] = useState(null);
-  const [currentMonth, setCurrentMonth] = useState(() => {
+  const [loading, setLoading] = useState(true);
+  
+  // visibleMonth controls which month is rendered in the calendar
+  // This is separate from selectedDate - selecting a date doesn't change the visible month
+  const [visibleMonth, setVisibleMonth] = useState(() => {
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() + 1 };
   });
-  const [loading, setLoading] = useState(true);
 
+  // Fetch calendar data when visibleMonth changes
   useEffect(() => {
     fetchCalendar();
-  }, [currentMonth]);
+  }, [visibleMonth]);
 
   const fetchCalendar = async () => {
     try {
       setLoading(true);
-      const response = await getCalendar(currentMonth.year, currentMonth.month);
+      const response = await getCalendar(visibleMonth.year, visibleMonth.month);
       setCalendarData(response.data);
     } catch (error) {
       console.error('Error fetching calendar:', error);
@@ -28,7 +32,7 @@ export default function Calendar({ selectedDate, onDateSelect, isCollapsed, onTo
   };
 
   const goToPreviousMonth = () => {
-    setCurrentMonth(prev => {
+    setVisibleMonth(prev => {
       if (prev.month === 1) {
         return { year: prev.year - 1, month: 12 };
       }
@@ -37,7 +41,7 @@ export default function Calendar({ selectedDate, onDateSelect, isCollapsed, onTo
   };
 
   const goToNextMonth = () => {
-    setCurrentMonth(prev => {
+    setVisibleMonth(prev => {
       if (prev.month === 12) {
         return { year: prev.year + 1, month: 1 };
       }
@@ -50,7 +54,9 @@ export default function Calendar({ selectedDate, onDateSelect, isCollapsed, onTo
     const today = todayDate || calendarData?.today;
     if (today) {
       const [year, month] = today.split('-').map(Number);
-      setCurrentMonth({ year, month });
+      // Update visible month to show today's month
+      setVisibleMonth({ year, month });
+      // Also select today
       onDateSelect(today);
     }
   };

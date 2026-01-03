@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { getHabitsForDate, getHabits, createHabit } from '../api';
+import { useState, useEffect, useCallback } from 'react';
+import { getHabitsForDate, getHabits, createHabit, toggleHabitCompletion } from '../api';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const COLORS = [
@@ -16,6 +16,7 @@ export default function DateView({ selectedDate, onToggle, onBack, todayDate }) 
   const [allHabits, setAllHabits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isFutureDate, setIsFutureDate] = useState(false);
+  const [toggling, setToggling] = useState(false);
   
   // Inline habit form state
   const [showAddForm, setShowAddForm] = useState(false);
@@ -60,6 +61,23 @@ export default function DateView({ selectedDate, onToggle, onBack, todayDate }) 
       console.error('Error fetching date data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Handle toggle locally and refresh data
+  const handleLocalToggle = async (habitId) => {
+    if (toggling) return;
+    
+    try {
+      setToggling(true);
+      // Call parent's onToggle which calls the API
+      await onToggle(habitId, selectedDate);
+      // Refresh local data to get updated completion status
+      await fetchDateData();
+    } catch (error) {
+      console.error('Error toggling habit:', error);
+    } finally {
+      setToggling(false);
     }
   };
 
@@ -528,10 +546,10 @@ export default function DateView({ selectedDate, onToggle, onBack, todayDate }) 
               } ${index !== dateData.habits.length - 1 ? 'border-b border-gray-100' : ''}`}
             >
               <button
-                onClick={() => dateData.isCurrentWeek && onToggle(habit.habitId, dateData.dayName)}
-                disabled={!dateData.isCurrentWeek}
+                onClick={() => dateData.isCurrentWeek && handleLocalToggle(habit.habitId)}
+                disabled={!dateData.isCurrentWeek || toggling}
                 className={`w-8 h-8 rounded-xl border-2 flex items-center justify-center mr-4 transition-all duration-200 ${
-                  !dateData.isCurrentWeek ? 'cursor-not-allowed opacity-60' : 'btn-press'
+                  !dateData.isCurrentWeek || toggling ? 'cursor-not-allowed opacity-60' : 'btn-press'
                 }`}
                 style={{
                   backgroundColor: habit.completed ? (habit.color || '#22c55e') : 'white',

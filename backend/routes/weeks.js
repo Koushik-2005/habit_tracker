@@ -1,6 +1,7 @@
 import express from 'express';
 import {
   getCurrentWeek,
+  getWeekByDate,
   toggleHabitCompletion,
   getWeekHistory,
   getWeekById,
@@ -13,6 +14,9 @@ const router = express.Router();
 
 // GET /api/week/current - Get current week data
 router.get('/current', getCurrentWeek);
+
+// GET /api/week/by-date - Get week data for a specific date
+router.get('/by-date', getWeekByDate);
 
 // POST /api/week/toggle - Toggle habit completion for a day
 router.post('/toggle', toggleHabitCompletion);

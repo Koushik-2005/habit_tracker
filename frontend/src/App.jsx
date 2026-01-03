@@ -14,7 +14,7 @@ import QuoteCard from './components/QuoteCard';
 import StreakBadge from './components/StreakBadge';
 import Calendar from './components/Calendar';
 import DateView from './components/DateView';
-import { getCurrentWeek, toggleHabitCompletion, getStats, deleteHabit } from './api';
+import { getCurrentWeek, getWeekByDate, toggleHabitCompletion, getStats, deleteHabit } from './api';
 
 function App() {
   const [weekData, setWeekData] = useState(null);
@@ -66,13 +66,16 @@ function App() {
     loadData();
   }, [fetchWeekData, fetchStats]);
 
-  // Handle habit toggle
-  const handleToggle = async (habitId, day) => {
+  // Handle habit toggle - now accepts date instead of day
+  const handleToggle = async (habitId, date) => {
     try {
-      const response = await toggleHabitCompletion(habitId, day);
+      const response = await toggleHabitCompletion(habitId, date);
       
       // Store previous progress to detect 100% completion
       const oldProgress = weekData?.progress || 0;
+      
+      // Get the day from the response (backend derives it from date)
+      const day = response.data.day;
       
       // Update local state optimistically
       setWeekData(prev => ({
@@ -159,13 +162,23 @@ function App() {
   };
 
   // Handle date selection from calendar
-  const handleDateSelect = (date) => {
+  const handleDateSelect = async (date) => {
     const today = weekData?.todayDate;
     if (date === today) {
+      // Going back to today - fetch current week
       setSelectedDate(null);
       setActiveTab('today');
+      await fetchWeekData();
     } else {
       setSelectedDate(date);
+      // Fetch week data for the selected date
+      try {
+        const response = await getWeekByDate(date);
+        setWeekData(response.data);
+      } catch (err) {
+        console.error('Error fetching week for date:', err);
+        showToast('Failed to load week data', 'error');
+      }
     }
     setCalendarCollapsed(true);
   };
@@ -259,6 +272,7 @@ function App() {
                     <TodayView
                       habits={weekData.habits}
                       today={weekData.today}
+                      todayDate={weekData.todayDate}
                       onToggle={handleToggle}
                       onDelete={handleDeleteHabit}
                     />

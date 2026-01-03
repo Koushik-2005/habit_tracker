@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export default function TodayView({ habits, today, onToggle, onDelete }) {
+export default function TodayView({ habits, today, todayDate, onToggle, onDelete }) {
   const [menuOpen, setMenuOpen] = useState(null);
 
   // Filter habits scheduled for today, sort compulsory first
@@ -94,7 +94,7 @@ export default function TodayView({ habits, today, onToggle, onDelete }) {
             style={{ animationDelay: `${index * 50}ms` }}
           >
             <button
-              onClick={() => onToggle(habit.habitId, today)}
+              onClick={() => onToggle(habit.habitId, todayDate)}
               className={`w-8 h-8 rounded-xl border-2 flex items-center justify-center mr-4 transition-all duration-200 btn-press shadow-sm hover:shadow-md`}
               style={{
                 backgroundColor: habit.completion[today] ? (habit.color || '#22c55e') : 'white',
